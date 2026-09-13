@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-PT" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142f36"><meta name="description" content="O teu espaço para escrever, ligar e revisitar ideias.">
+  <title>gNOTES Pro — Biblioteca de ideias</title>
+  <link rel="icon" href="logo_simplificado.png"><link rel="apple-touch-icon" href="logo_simplificado.png">
+  <link rel="manifest" href="manifest.json"><link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/marked.js"></script><script defer src="vendor/purify.js"></script>
+  <script defer src="vendor/jszip.js"></script><script defer src="vendor/docx.js"></script>
+  <script defer src="core.js"></script><script defer src="app.js"></script>
+</head>
+<body>
+  <a href="#reader" class="skip">Saltar para a nota</a>
+  <div id="app" class="app">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <a class="brand" href="./"><img src="logo_simplificado.png" alt=""><span>gNOTES<span class="pro">PRO</span></span></a>
+      <button class="primary new-note" data-action="new"><span>＋</span> Nova nota <kbd>Alt N</kbd></button>
+      <p class="nav-label">O TEU ESPAÇO</p>
+      <nav id="navigation">
+        <button class="nav-item active" data-view="all"><span class="nav-icon">▤</span> Todas as notas <span id="count-all" class="count">0</span></button>
+        <button class="nav-item" data-view="drafts"><span class="nav-icon">✎</span> Por desenvolver <span id="count-drafts" class="count">0</span></button>
+        <button class="nav-item" data-view="pinned"><span class="nav-icon">☆</span> Fixadas <span id="count-pinned" class="count">0</span></button>
+        <button class="nav-item" data-view="graph"><span class="nav-icon">⌘</span> Mapa de ligações</button>
+        <button class="nav-item" data-view="review"><span class="nav-icon">▱</span> Rever ideias <span id="count-review" class="count">0</span></button>
+        <button class="nav-item" data-view="stats"><span class="nav-icon">▥</span> A minha atividade</button>
+      </nav>
+      <div class="category-head"><p class="nav-label">CATEGORIAS</p><span id="category-count"></span></div>
+      <div id="categories" class="categories"></div>
+      <div class="sidebar-bottom">
+        <button class="nav-item" data-view="trash"><span class="nav-icon">♲</span> Lixo <span id="count-trash" class="count">0</span></button>
+        <button class="nav-item" data-action="settings"><span class="nav-icon">⚙</span> Preferências e cópias</button>
+        <button class="sync-indicator" data-action="sync" title="Verificar sincronização"><span id="sync-dot" class="sync-dot"></span><span id="sync-label">A abrir a biblioteca…</span><span>↻</span></button>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><button class="icon mobile-menu" data-action="menu" aria-label="Abrir navegação">☰</button><div class="breadcrumb">Biblioteca <span>/</span> <strong id="view-label">Todas as notas</strong></div><div class="top-actions"><button class="quiet" data-action="random">↗ Redescobrir</button><button class="icon" data-action="theme" aria-label="Mudar tema" title="Mudar tema">◐</button></div></header>
+      <div id="demo-banner" class="notice" hidden>Estás a experimentar uma biblioteca de exemplo. As tuas notas não são alteradas. <a href="./">Abrir a minha biblioteca →</a></div>
+      <div id="connection-banner" class="notice" hidden></div>
+      <div id="draft-banner" class="notice" hidden></div>
+      <div class="split" id="split">
+        <section class="library" aria-label="Lista de notas">
+          <div class="library-heading"><div><p class="eyebrow">IDEIAS QUE SE LIGAM</p><h1 id="library-title">Todas as notas</h1></div><span id="list-count" class="pill">0</span></div>
+          <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Encontrar uma ideia…" aria-label="Pesquisar notas"><kbd>Ctrl K</kbd></label>
+          <div class="list-filters"><select id="status-filter" aria-label="Filtrar por estado"><option value="">Todos os estados</option><option>Rascunho</option><option>Concluída</option></select><select id="sort" aria-label="Ordenar notas"><option value="recent">Mais recentes</option><option value="title">Título A–Z</option><option value="old">Mais antigas</option></select></div>
+          <div id="note-list" class="note-list" aria-label="Resultados da pesquisa"></div>
+          <div class="library-footer"><span id="result-label">A preparar as tuas notas</span><span>Markdown · [[ligações]]</span></div>
+        </section>
+        <main id="reader" class="reader" tabindex="-1"><div class="empty"><div class="empty-symbol">✎</div><h2>Espaço para a próxima ideia.</h2><p>Cria uma nota ou abre uma da tua biblioteca.</p><button class="primary" data-action="new">Escrever uma nota</button></div></main>
+      </div>
+      <main id="tool-view" class="tool-view" hidden></main>
+    </div>
+  </div>
+  <dialog id="settings-dialog"><form method="dialog" class="dialog-heading"><h2>O teu espaço, à tua maneira.</h2><button class="icon" aria-label="Fechar preferências">✕</button></form><div class="dialog-body">
+    <section><h3>Ligação ao Google Sheets</h3><p>Usa o endereço da aplicação Web do Apps Script atualizado.</p><label>Endereço da aplicação<input id="endpoint" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><button class="primary" data-action="connect">Guardar ligação e sincronizar</button><p id="connection-detail" class="muted"></p><a href="LEIA-ME.html" target="_blank" rel="noopener">Como instalar a nova versão →</a></section>
+    <section><h3>Cópias e portabilidade</h3><p>A cópia completa inclui notas, lixo, rascunhos e alterações por enviar.</p><div class="button-row"><button data-action="backup">Descarregar cópia completa</button><button data-action="zip">Exportar para Obsidian</button><button data-action="import">Importar cópia JSON</button></div><input id="import-file" type="file" accept=".json,application/json" hidden></section>
+    <section><h3>Capturar uma referência</h3><p>Guarda um endereço numa nova nota de leitura.</p><label>Endereço da referência<input id="capture-url" type="url" placeholder="https://…"></label><button data-action="capture">Criar nota a partir do endereço</button></section>
+    <section><h3>Aparência</h3><div class="button-row"><button data-theme-choice="light">Claro</button><button data-theme-choice="dark">Escuro</button><button data-theme-choice="sepia">Sépia</button></div><p class="muted">Atalhos: Ctrl/Cmd K para pesquisar · Alt N para criar · Ctrl/Cmd S para guardar.</p></section>
+  </div></dialog>
+  <dialog id="confirm-dialog"><div class="dialog-body"><h2 id="confirm-title"></h2><p id="confirm-text"></p><div class="button-row"><button id="confirm-cancel">Cancelar</button><button id="confirm-ok" class="primary">Continuar</button></div></div></dialog>
+  <dialog id="history-dialog"><form method="dialog" class="dialog-heading"><h2>Histórico da nota</h2><button class="icon" aria-label="Fechar histórico">✕</button></form><div id="history-content" class="dialog-body"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body></html>
