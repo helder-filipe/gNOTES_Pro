@@ -101,6 +101,7 @@ function gather(){const n=C.normalize(state.notes[selected]||{ID:selected,Estado
 async function saveDraft(){if(!editing||!dirty)return;const note=gather();await transaction(s=>{s.drafts[draftKey]={note,baseVersion:editBaseVersion,savedAt:new Date().toISOString()};});dirty=false;if($('draft-status'))$('draft-status').textContent='Rascunho guardado neste dispositivo';}
 async function openEditor(note,recover=true){
   await leaveEditor();selected=note.ID||C.uid();draftKey=selected;editing=true;editBaseVersion=Number(note.Version)||0;readingStart=Date.now();
+  document.body.classList.remove('menu-open');
   if(recover&&state.drafts[draftKey]){note=state.drafts[draftKey].note;editBaseVersion=state.drafts[draftKey].baseVersion;}
   if(['graph','review','stats','trash'].includes(view))view='all';showSurface();document.body.classList.add('note-open');renderList();
   const options=(values,current)=>values.map(v=>`<option ${v===current?'selected':''}>${esc(v)}</option>`).join('');
