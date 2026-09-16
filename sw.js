@@ -1,4 +1,4 @@
-const CACHE='gnotes-pro-v3-4';
+const CACHE='gnotes-pro-v3-5';
 const FILES=['./','index.html','styles.css','app.js','core.js','metadata.js','manifest.json','logo_simplificado.png','vendor/marked.js','vendor/purify.js','vendor/jszip.js','vendor/docx.js'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));});
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('gnotes-pro-v3-')&&k!==CACHE).map(k=>caches.delete(k))))));

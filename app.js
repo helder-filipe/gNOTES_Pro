@@ -107,24 +107,61 @@ function refreshEditorExtras(){
 }
 let coverRequest=0;
 let coverTimer;
-async function fetchCover(replaceExisting=false){
+async function fetchCover(replaceExisting=false,includeTitle=false){
   if(!editing||!$('f-url'))return;
   const form=$('editor-form'), image=$('f-image'), title=$('f-title'), status=$('cover-status');
-  const value=$('f-url').value, url=value.split(/\r?\n/).map(x=>x.trim()).find(Boolean);
+  const value=$('f-url').value, url=coverResources(gather())[0];
   if(!url){status.textContent='Acrescenta uma ligação em Fontes, recursos e ligações.';return;}
   if(image.value.trim()&&!replaceExisting){status.textContent='A capa atual foi preservada. Para procurar outra, limpa o endereço da imagem.';return;}
   const request=++coverRequest, initialTitle=title.value, initialImage=image.value;
-  status.textContent='A obter título e capa…';
+  status.textContent='A procurar uma imagem para a capa…';
   try {
     const result=await GNotesMetadata.lookup(url);
     if(result.image)await GNotesMetadata.validateImage(result.image);
     if(request!==coverRequest||!editing||$('editor-form')!==form||$('f-url').value!==value)return;
     if(image.value===initialImage&&result.image)image.value=result.image;
     const host=new URL(url).hostname.replace(/^www\./,'');
-    if(title.value===initialTitle&&(!initialTitle.trim()||initialTitle===host)&&result.title)title.value=result.title;
+    if(includeTitle&&title.value===initialTitle&&(!initialTitle.trim()||initialTitle===host)&&result.title)title.value=result.title;
     form.dispatchEvent(new Event('input',{bubbles:true}));
     status.textContent=result.image?'Capa obtida. Guarda a nota para a sincronizar.':'Este endereço não disponibilizou uma capa. Podes indicar uma imagem manualmente.';
   }catch(error){if(request===coverRequest&&editing&&$('editor-form')===form&&$('f-url').value===value)status.textContent=error.message;}
+}
+
+
+function coverResources(note){
+  const found=[];
+  for(const field of [note.UrlMedia,note.Fonte,note.Conteudo]){
+    for(const match of String(field||'').matchAll(/https?:\/\/[^\s<>"\x27\[\]]+/gi)){
+      const url=urlSafe(match[0].replace(/[),.;!?]+$/,'').replace(/&amp;/g,'&'));
+      if(url&&!found.includes(url))found.push(url);
+    }
+  }
+  return found;
+}
+const coverJobs=new Set();
+async function fetchReaderCover(){
+  const id=selected,note=state.notes[id];if(!note||note.DeletedAt||coverJobs.has(id))return;
+  const status=$('reader-cover-status'),message=text=>{if(!editing&&selected===id&&$('reader-cover-status')===status)status.textContent=text;};
+  const urls=coverResources(note);
+  if(!urls.length){message('Adiciona uma ligação pública em «Editar nota → Fontes, recursos e ligações».');return;}
+  if(state.conflicts[id]){message('Resolve o conflito desta nota antes de atualizar a capa.');return;}
+  const originalImage=note.UrlImagem, source=urls[0];
+  coverJobs.add(id);message('A procurar e verificar a capa…');
+  try{
+    const result=await GNotesMetadata.lookup(source);
+    if(!result.image)throw Error('O site não disponibilizou uma imagem. Em sites como o Instagram, o acesso pode estar bloqueado.');
+    await GNotesMetadata.validateImage(result.image);
+    if(editing&&selected===id)throw Error('A nota está a ser editada. Usa o botão de capa no editor.');
+    await transaction(s=>{
+      const latest=s.notes[id];
+      if(!latest||latest.DeletedAt||s.conflicts[id]||latest.UrlImagem!==originalImage||coverResources(latest)[0]!==source)throw Error('A nota mudou durante a consulta. Tenta novamente.');
+      C.enqueue(s,{...latest,UrlImagem:result.image,DataAtualizacao:new Date().toISOString()});
+    });
+    renderList();
+    if(!editing&&selected===id){renderReader();$('reader-cover-status').textContent='Capa atualizada e guardada. O título foi mantido.';}
+    run(sync);
+  }catch(error){message(error.message);}
+  finally{coverJobs.delete(id);}
 }
 
 function noteStatus(n){return demo?'Exemplo · guardado neste dispositivo':state.conflicts[n.ID]?'Versões em conflito':state.queue.some(o=>o.note.ID===n.ID)?'Guardada neste dispositivo · por enviar':protocolReady?'Sincronizada com o Google Sheets':'Cópia local';}
@@ -132,13 +169,13 @@ function renderReader(){
   const n=state.notes[selected];if(!n){$('reader').innerHTML='<div class="empty"><div class="empty-symbol">✎</div><h2>Espaço para a próxima ideia.</h2><p>Cria uma nota ou abre uma da tua biblioteca.</p><button class="primary" data-action="new">Escrever uma nota</button></div>';return;}
   const outgoing=C.links(n,state.notes),back=active().filter(x=>x.ID!==n.ID&&C.links(x,state.notes).includes(n.ID));
   const suggestions=active().filter(x=>x.ID!==n.ID&&!outgoing.includes(x.ID)&&!back.some(b=>b.ID===x.ID)).map(x=>({x,score:tags(x).filter(t=>tags(n).map(C.text).includes(C.text(t))).length*2+(x.Categoria&&x.Categoria===n.Categoria?1:0)})).filter(v=>v.score).sort((a,b)=>b.score-a.score).slice(0,3).map(v=>v.x);
-  const resources=String(n.UrlMedia||'').split(/[,\n]+/).map(urlSafe).filter(Boolean);
+  const resources=coverResources(n);
   $('reader').innerHTML=`<div class="reader-toolbar"><div class="button-row"><button class="quiet back-list" data-action="back">← Notas</button><span class="status">${esc(noteStatus(n))}</span></div><div class="button-row">${n.DeletedAt?'<button class="primary" data-action="restore">Restaurar nota</button>':'<button class="quiet" data-action="pin" aria-label="Fixar ou desafixar nota">'+(state.pins.includes(n.ID)?'★':'☆')+'</button><button class="quiet" data-action="zen" title="Modo de leitura">⛶</button><button class="primary" data-action="edit">✎ Editar nota</button>'}</div></div>
   <article class="reader-body">${state.conflicts[n.ID]?`<div class="conflict-box"><strong>Existem duas versões desta nota.</strong><p>A tua versão está preservada. Podes guardá-la como outra nota ou recuperar a versão do servidor.</p><div class="button-row"><button data-action="keep-both">Preservar ambas</button><button data-action="use-remote">Usar versão do servidor</button></div></div>`:''}
   ${n.DeletedAt?'<div class="notice">Esta nota está no lixo. Podes restaurá-la a qualquer momento.</div>':''}
   <div class="note-type">${esc(n.Tipo)} ${n.Estado==='Rascunho'?'· Rascunho':''}</div><h1 class="note-heading">${esc(n.Titulo)}</h1><div class="note-metadata"><span>${esc(n.Categoria||'Sem categoria')}${n.Subcategoria?' / '+esc(n.Subcategoria):''}</span><span>Atualizada a ${esc(safeDate(n.DataAtualizacao))}</span><span>${Math.max(1,Math.ceil(words(n)/200))} min de leitura</span></div>
   ${qualityPanel(n)}<div class="tags">${tags(n).map(t=>`<button class="tag" data-tag="${esc(t)}">#${esc(t)}</button>`).join('')}</div>
-  ${coverMarkup(n.UrlImagem)}${resources.length&&!n.DeletedAt?`<button class="quiet" data-action="${n.UrlImagem?'repair-cover':'cover'}">${n.UrlImagem?'Procurar outra capa':'Obter capa da ligação'}</button>`:''}<div class="markdown">${markdown(n.Conteudo)}</div>
+  ${coverMarkup(n.UrlImagem)}${!n.DeletedAt?`<div class="cover-controls"><button class="quiet" data-action="${n.UrlImagem?'repair-cover':'cover'}">${n.UrlImagem?'Procurar outra capa':'Obter capa da ligação'}</button><small id="reader-cover-status" role="status">${resources.length?'': 'Esta nota não tem uma ligação pública. Adiciona-a em «Editar nota».'}</small></div>`:''}<div class="markdown">${markdown(n.Conteudo)}</div>
   ${n.Fonte||resources.length?`<div class="source"><strong>Fonte e referências</strong>${n.Fonte?'<p>'+esc(n.Fonte)+'</p>':''}${resources.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">↗ ${esc(url)}</a>`).join('')}</div>`:''}
   <section class="connections"><div class="section-label">Ligações desta ideia <span class="pill">${outgoing.length}</span></div>${outgoing.length?outgoing.map(id=>`<button class="link-card" ${state.notes[id]?'data-note="'+esc(id)+'"':'data-missing="'+esc(id)+'"'}>↗ ${esc(state.notes[id]?.Titulo||id)}${!state.notes[id]||state.notes[id].DeletedAt?'<small>Ligação por resolver</small>':''}</button>`).join(''):'<p class="muted">Liga esta ideia a outra nota usando [[ no editor.</p>'}</section>
   <section class="connections"><div class="section-label">Notas que apontam para aqui <span class="pill">${back.length}</span></div>${back.map(x=>`<button class="link-card" data-note="${esc(x.ID)}">↳ ${esc(x.Titulo)}<small>${esc(snippet(x,n.Titulo))}</small></button>`).join('')||'<p class="muted">As referências a esta nota aparecem aqui.</p>'}</section>
@@ -242,10 +279,10 @@ function renderStats(){const notes=active(),connected=new Set();notes.forEach(n=
   $('tool-view').innerHTML=`<div class="tool-heading"><div><p class="eyebrow">A BIBLIOTECA EM MOVIMENTO</p><h1>A minha atividade</h1><p>Pequenas ideias, construídas ao longo do tempo.</p></div></div><div class="stat-grid"><div class="stat"><strong>${notes.length}</strong><span>Notas na biblioteca</span></div><div class="stat"><strong>${notes.reduce((sum,n)=>sum+C.links(n,state.notes).filter(id=>state.notes[id]&&!state.notes[id].DeletedAt).length,0)}</strong><span>Ligações entre notas</span></div><div class="stat"><strong>${notes.filter(n=>n.Estado==='Rascunho').length}</strong><span>Por desenvolver</span></div><div class="stat"><strong>${notes.reduce((sum,n)=>sum+Number(n.ReviewCount||0),0)}</strong><span>Revisões realizadas</span></div></div><h3>Notas criadas · últimos 90 dias</h3><div class="heatmap">${cells}</div><p class="muted">${notes.reduce((s,n)=>s+words(n),0).toLocaleString('pt-PT')} palavras · ${Math.round(notes.reduce((s,n)=>s+Number(n.TempoDeEdicao||0),0)/60)} minutos de escrita registados</p><hr><h3>Ideias à procura de uma ligação</h3><p class="muted">Estas notas ainda não têm ligações a outras notas da biblioteca.</p>${orphan.slice(0,15).map(n=>`<button class="link-card" data-note="${esc(n.ID)}">${esc(n.Titulo)}</button>`).join('')||'<p class="muted">Todas as tuas notas fazem parte da rede.</p>'}`;
 }
 async function historyDialog(){historyItems=state.history[selected]||[];const paint=()=>{$('history-content').innerHTML=historyItems.length?historyItems.map((n,i)=>`<div class="history-entry"><strong>${esc(safeDate(n.DataAtualizacao))} · ${esc(n.Titulo)}</strong><pre>${esc(n.Conteudo)}</pre><button data-history="${i}">Recuperar esta versão como rascunho</button></div>`).join(''):'<p>Ainda não existem versões anteriores. As próximas alterações serão guardadas no histórico.</p>';};paint();$('history-dialog').showModal();if(!demo&&protocolReady){try{const result=await apiGet({historyId:selected});if(Array.isArray(result.history)){const seen=new Set();historyItems=[...historyItems,...result.history.map(C.normalize)].filter(n=>{const key=n.Version+':'+n.Conteudo;if(seen.has(key))return false;seen.add(key);return true;});paint();}}catch{toast('A mostrar apenas o histórico deste dispositivo.');}}}
-async function capture(){const url=urlSafe($('capture-url').value);if(!url)return toast('Introduz um endereço http ou https válido.');$('settings-dialog').close();const u=new URL(url);await openEditor(C.normalize({ID:C.uid(),Titulo:u.hostname.replace(/^www\./,''),Conteudo:'## Ideia principal\n\n\n## Reflexão pessoal\n\n',UrlMedia:url,Estado:'Rascunho',Tipo:'Nota de leitura',Plataforma:/youtube\.com|youtu\.be/.test(u.hostname)?'YouTube':'Artigo'}));dirty=true;await saveDraft();await fetchCover();}
+async function capture(){const url=urlSafe($('capture-url').value);if(!url)return toast('Introduz um endereço http ou https válido.');$('settings-dialog').close();const u=new URL(url);await openEditor(C.normalize({ID:C.uid(),Titulo:u.hostname.replace(/^www\./,''),Conteudo:'## Ideia principal\n\n\n## Reflexão pessoal\n\n',UrlMedia:url,Estado:'Rascunho',Tipo:'Nota de leitura',Plataforma:/youtube\.com|youtu\.be/.test(u.hostname)?'YouTube':'Artigo'}));dirty=true;await saveDraft();await fetchCover(false,true);}
 async function connect(){const value=$('endpoint').value.trim();let url;try{url=new URL(value);}catch{return toast('Introduz o endereço da aplicação Web.');}if(url.protocol!=='https:'||url.hostname!=='script.google.com'||!/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname))return toast('Usa o endereço /exec da aplicação Web do Google Apps Script.');if(demo)return toast('A ligação está desativada na biblioteca de exemplo. Abre a tua biblioteca para configurar.');if(value!==endpoint&&state.queue.length)return toast('Envia ou recupera as alterações pendentes antes de mudar de ligação.');if(value!==endpoint&&Object.keys(state.notes).length){if(!await confirmAction('Mudar de biblioteca?','Será descarregada uma cópia completa antes de abrir os dados do novo endereço.','Guardar cópia e mudar'))return;backup();await transaction(s=>Object.assign(s,C.empty()));}endpoint=value;localStorage.setItem('gnotes_v3_endpoint',value);legacy=false;protocolReady=false;await sync();}
 async function action(name){switch(name){
-  case'repair-cover':if(!editing)await openEditor(state.notes[selected]);return fetchCover(true);case'cover':if(!editing)await openEditor(state.notes[selected]);return fetchCover();case'new':return newNote();case'edit':return openEditor(state.notes[selected]);case'save':return saveNote();case'sync':return sync();case'trash':return trashNote();case'restore':return restore();case'keep-both':return resolveConflict(true);case'use-remote':return resolveConflict(false);
+  case'repair-cover':return editing?fetchCover(true):fetchReaderCover();case'cover':return editing?fetchCover():fetchReaderCover();case'new':return newNote();case'edit':return openEditor(state.notes[selected]);case'save':return saveNote();case'sync':return sync();case'trash':return trashNote();case'restore':return restore();case'keep-both':return resolveConflict(true);case'use-remote':return resolveConflict(false);
   case'settings':$('endpoint').value=endpoint;renderStatus();$('settings-dialog').showModal();break;case'connect':return connect();case'backup':return backup();case'zip':return exportZip();case'import':$('import-file').click();break;case'capture':return capture();
   case'pin':await transaction(s=>s.pins=s.pins.includes(selected)?s.pins.filter(id=>id!==selected):[...s.pins,selected]);renderList();renderReader();break;
   case'back':await leaveEditor();document.body.classList.remove('note-open');renderList();break;
