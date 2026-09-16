@@ -92,6 +92,23 @@
     for(const [id,items]of Object.entries(raw.history||{})){if(!validId(id)||!Array.isArray(items))throw Error('Histórico inválido na cópia.');s.history[id]=items.slice(0,30).map(normalize);}
     s.pins=Array.isArray(raw.pins)?raw.pins.filter(validId):[];s.lastSync=raw.lastSync?String(raw.lastSync):null;return s;
   }
-  const api={fields,normalize,uid,validId,empty,upgrade,restoreBackup,links,merge,enqueue,acknowledge,search,markdown,text};
+  function quality(raw, notes={}) {
+    const n=normalize(raw), p=n.Plataforma.toLowerCase(), moc=p.includes('moc')||n.Tipo==='Mapa de conteúdo';
+    const words=n.Conteudo.trim()?n.Conteudo.trim().split(/\s+/).length:0;
+    const minutes=value=>Math.floor(Math.max(0,parseFloat(value)||0)/60);
+    const editMinutes=minutes(n.TempoDeEdicao), readMinutes=minutes(n.TempoDeLeitura);
+    const origin=moc?35:/livro|e-book/.test(p)?30:/revista|artigo|jornal/.test(p)?25:p.includes('podcast')?15:/youtube|vídeo/.test(p)?5:/instagram|x|twitter/.test(p)?0:10;
+    const parts={Texto:Math.min(Math.round(Math.log(words+1)*10),50),Origem:origin,
+      Ligações:Math.min(links(n,notes).length*15,moc?120:60),
+      Etiquetas:Math.min(new Set(n.Tags.split(/[,;]+/).map(t=>t.trim().toLowerCase()).filter(Boolean)).size*3,15),
+      Imagem:n.UrlImagem?2:0,
+      'Recurso sem reflexão':(n.UrlMedia||n.UrlImagem||/instagram|x/.test(p))&&words<30?-15:0,
+      Edição:Math.min(editMinutes,30),Leitura:Math.min(Math.floor(readMinutes*.5),15)};
+    const max=moc?267:202, rawScore=Math.max(0,Object.values(parts).reduce((a,b)=>a+b,0));
+    const score=Math.min(100,Math.round(rawScore/max*100));
+    const level=score>=70?3:score>=50?2:score>=30?1:0;
+    return {score,level,label:['🥉 Superficial','🥈 Consistente','🥇 Elevada Qualidade','🏆 Académica / Profunda'][level],parts,rawScore,max,words,editMinutes,readMinutes};
+  }
+  const api={fields,normalize,uid,validId,empty,upgrade,restoreBackup,links,merge,enqueue,acknowledge,search,markdown,text,quality};
   if(typeof module!=='undefined'&&module.exports)module.exports=api; else root.GNotesCore=api;
 })(typeof window!=='undefined'?window:this);

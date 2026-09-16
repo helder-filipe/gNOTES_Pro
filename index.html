@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json"><link rel="stylesheet" href="styles.css">
   <script defer src="vendor/marked.js"></script><script defer src="vendor/purify.js"></script>
   <script defer src="vendor/jszip.js"></script><script defer src="vendor/docx.js"></script>
-  <script defer src="core.js"></script><script defer src="app.js"></script>
+  <script defer src="core.js"></script><script defer src="metadata.js"></script><script defer src="app.js"></script>
 </head>
 <body>
   <a href="#reader" class="skip">Saltar para a nota</a>
@@ -42,7 +42,7 @@
         <section class="library" aria-label="Lista de notas">
           <div class="library-heading"><div><p class="eyebrow">IDEIAS QUE SE LIGAM</p><h1 id="library-title">Todas as notas</h1></div><span id="list-count" class="pill">0</span></div>
           <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Encontrar uma ideia…" aria-label="Pesquisar notas"><kbd>Ctrl K</kbd></label>
-          <div class="list-filters"><select id="status-filter" aria-label="Filtrar por estado"><option value="">Todos os estados</option><option>Rascunho</option><option>Concluída</option></select><select id="sort" aria-label="Ordenar notas"><option value="recent">Mais recentes</option><option value="title">Título A–Z</option><option value="old">Mais antigas</option></select></div>
+          <div class="list-filters"><select id="status-filter" aria-label="Filtrar por estado"><option value="">Todos os estados</option><option>Rascunho</option><option>Concluída</option></select><select id="sort" aria-label="Ordenar notas"><option value="recent">Mais recentes</option><option value="title">Título A–Z</option><option value="quality">Maior IQR</option><option value="old">Mais antigas</option></select></div>
           <div id="note-list" class="note-list" aria-label="Resultados da pesquisa"></div>
           <div class="library-footer"><span id="result-label">A preparar as tuas notas</span><span>Markdown · [[ligações]]</span></div>
         </section>
